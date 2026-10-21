@@ -1,0 +1,738 @@
+<!--
+  Copyright (c) 2026 Dimitris Savvaris
+  SPDX-License-Identifier: MIT
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RPY Orientation Comparison</title>
+
+  <style>
+    :root {
+      font-family: Inter, system-ui, -apple-system, sans-serif;
+      color: #e8edf5;
+      background: #10151e;
+      --panel: #192230;
+      --border: #303d50;
+      --muted: #9eacc0;
+      --accent: #72a9ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    body { margin: 0; }
+
+    header {
+      padding: 22px 28px;
+      border-bottom: 1px solid var(--border);
+      background: #141c28;
+    }
+
+    h1 { margin: 0 0 7px; font-size: 25px; }
+    h2 { margin: 0 0 16px; font-size: 17px; }
+    h3 { margin: 0 0 10px; font-size: 14px; }
+    p { color: var(--muted); line-height: 1.5; }
+    header p { margin: 0; }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+      gap: 18px;
+      padding: 18px;
+      max-width: 1700px;
+      margin: auto;
+    }
+
+    .left, .right { display: flex; flex-direction: column; gap: 18px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      min-width: 0;
+    }
+
+    .fields {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    label { display: block; color: var(--muted); font-size: 12px; }
+    input, select, button {
+      width: 100%;
+      margin-top: 6px;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: #101722;
+      color: #f2f6fc;
+      padding: 10px;
+      font: inherit;
+    }
+
+    input { min-width: 0; }
+    input:focus, select:focus { outline: 2px solid var(--accent); }
+
+    button {
+      background: #326dc4;
+      border: 0;
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button.secondary { background: #2b3748; }
+    button:hover { filter: brightness(1.12); }
+
+    .button-row { display: flex; gap: 9px; margin-top: 14px; }
+    .button-row button { flex: 1; }
+
+    .muted { color: var(--muted); font-size: 13px; }
+    .status { font-size: 13px; color: #9eacc0; margin-top: 12px; }
+    .status.error { color: #ff9292; }
+    .status.ok { color: #81dfae; }
+
+    .formula {
+      padding: 12px;
+      background: #101722;
+      border-radius: 8px;
+      font-family: ui-monospace, monospace;
+      overflow-wrap: anywhere;
+      line-height: 1.7;
+    }
+
+    .offsets {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .offset {
+      padding: 12px 7px;
+      text-align: center;
+      background: #101722;
+      border-radius: 8px;
+    }
+
+    .offset span { display: block; color: var(--muted); font-size: 12px; }
+    .offset strong { display: block; font-size: 18px; margin-top: 5px; }
+
+    #scene {
+      width: 100%;
+      height: 470px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #0c121b;
+      position: relative;
+    }
+
+    #scene canvas { display: block; width: 100%; height: 100%; }
+
+    .scene-tools {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .scene-tools select { width: auto; min-width: 145px; margin: 0; }
+
+    .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .dot { width: 9px; height: 9px; display: inline-block; border-radius: 50%; }
+    .red { background: #ff5555; }
+    .green { background: #44d18a; }
+    .blue { background: #5396ff; }
+    .solid-line { width: 17px; border-top: 2px solid #d9e3f3; }
+    .dashed-line { width: 17px; border-top: 2px dashed #d9e3f3; }
+
+    .checks { display: flex; gap: 16px; flex-wrap: wrap; }
+    .checks label { display: flex; align-items: center; gap: 7px; }
+    .checks input { width: auto; margin: 0; }
+
+    .matrix-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .matrix-card {
+      background: #101722;
+      padding: 12px;
+      border-radius: 8px;
+      min-width: 0;
+    }
+
+    .matrix-card h3 { overflow-wrap: anywhere; }
+
+    table { border-collapse: collapse; width: 100%; font: 12px ui-monospace, monospace; }
+    td { text-align: right; padding: 5px 2px; }
+    td:first-child { color: var(--muted); }
+    .table-scroll { overflow-x: auto; }
+
+    .section-note { font-size: 12px; color: var(--muted); margin-top: 10px; }
+    .topline { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+
+    @media (max-width: 950px) {
+      main { grid-template-columns: 1fr; padding: 12px; }
+      .matrix-grid { grid-template-columns: 1fr; }
+      #scene { height: 400px; }
+    }
+
+    @media (max-width: 420px) {
+      header { padding: 18px; }
+      .fields { gap: 6px; }
+      input { padding: 8px 5px; }
+      .panel { padding: 13px; }
+    }
+  </style>
+</head>
+
+<body>
+<header>
+  <h1>RPY Orientation Comparison</h1>
+  <p>Compare External IMU and VectorNav roll, pitch, yaw, rotation matrices, and relative orientation.</p>
+</header>
+
+<main>
+  <section class="left">
+    <div class="panel">
+      <h2>Coordinate convention</h2>
+      <label for="convention">World reference frame</label>
+      <select id="convention">
+        <option value="NED" selected>NED — North, East, Down</option>
+        <option value="ENU">ENU — East, North, Up</option>
+      </select>
+      <p id="convention-note" class="muted">
+        NED: X = North, Y = East, Z = Down.
+      </p>
+      <div class="formula">
+        R = Rz(yaw) · Ry(pitch) · Rx(roll)
+      </div>
+      <p class="muted">
+        Angles are entered in degrees. The coordinate selector changes the 3D
+        display mapping; it does not automatically reinterpret or convert the
+        sensor's reported angles.
+      </p>
+    </div>
+
+    <div class="panel">
+      <h2>External IMU</h2>
+      <div class="fields">
+        <label>Roll (°)<input id="external_roll" type="number" step="any" value="0"></label>
+        <label>Pitch (°)<input id="external_pitch" type="number" step="any" value="0"></label>
+        <label>Yaw (°)<input id="external_yaw" type="number" step="any" value="0"></label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>VectorNav IMU</h2>
+      <div class="fields">
+        <label>Roll (°)<input id="vn_roll" type="number" step="any" value="0"></label>
+        <label>Pitch (°)<input id="vn_pitch" type="number" step="any" value="0"></label>
+        <label>Yaw (°)<input id="vn_yaw" type="number" step="any" value="0"></label>
+      </div>
+      <div class="button-row">
+        <button id="calculate">Calculate</button>
+        <button id="reset" class="secondary">Reset</button>
+      </div>
+      <div id="status" class="status">Connecting to server…</div>
+    </div>
+
+    <div class="panel">
+      <h2>Component-wise RPY offsets</h2>
+      <div class="offsets">
+        <div class="offset"><span>Roll</span><strong id="off-roll">—</strong></div>
+        <div class="offset"><span>Pitch</span><strong id="off-pitch">—</strong></div>
+        <div class="offset"><span>Yaw</span><strong id="off-yaw">—</strong></div>
+      </div>
+      <p class="section-note">
+        These values are the server's direct VN − External Euler-angle
+        differences. They are not necessarily the Euler angles of the relative
+        rotation matrix.
+      </p>
+    </div>
+  </section>
+
+  <section class="right">
+    <div class="panel">
+      <div class="scene-tools">
+        <h2 style="margin:0">Interactive 3D view</h2>
+        <button id="reset-view" class="secondary" style="width:auto;margin:0">Reset camera</button>
+      </div>
+      <div class="legend" style="margin-bottom:12px">
+        <span><i class="dot red"></i>X axis</span>
+        <span><i class="dot green"></i>Y axis</span>
+        <span><i class="dot blue"></i>Z axis</span>
+        <span><i class="solid-line"></i>External</span>
+        <span><i class="dashed-line"></i>VectorNav</span>
+      </div>
+      <div id="scene"></div>
+      <div class="checks" style="margin-top:14px">
+        <label><input id="show-world" type="checkbox" checked> World axes</label>
+        <label><input id="show-external" type="checkbox" checked> External frame</label>
+        <label><input id="show-vn" type="checkbox" checked> VectorNav frame</label>
+      </div>
+      <p class="section-note">
+        Drag to orbit, scroll to zoom, and right-drag to pan. Solid axes are
+        External; dashed axes are VectorNav.
+      </p>
+    </div>
+
+    <div class="panel">
+      <h2>Rotation matrices</h2>
+      <div class="matrix-grid">
+        <div class="matrix-card">
+          <h3>R External</h3>
+          <div id="matrix-external" class="table-scroll">Waiting for data…</div>
+        </div>
+        <div class="matrix-card">
+          <h3>R VectorNav</h3>
+          <div id="matrix-vn" class="table-scroll">Waiting for data…</div>
+        </div>
+        <div class="matrix-card">
+          <h3>R Offset</h3>
+          <div id="matrix-offset" class="table-scroll">Waiting for data…</div>
+        </div>
+      </div>
+      <p class="section-note">
+        R Offset = transpose(R External) × R VectorNav, as calculated by the
+        server.
+      </p>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+
+  const inputs = [
+    "external_roll", "external_pitch", "external_yaw",
+    "vn_roll", "vn_pitch", "vn_yaw"
+  ];
+
+  let renderer, scene, camera, controls;
+  let externalFrame, vnFrame, worldGroup, animationId;
+  let lastResponse = null;
+
+  function setStatus(message, kind = "") {
+    $("status").textContent = message;
+    $("status").className = "status " + kind;
+  }
+
+  function readInputs() {
+    const values = {};
+    for (const id of inputs) {
+      const raw = $(id).value.trim();
+      const value = Number(raw);
+      if (raw === "" || !Number.isFinite(value)) {
+        throw new Error("Enter a valid finite number for every angle.");
+      }
+      values[id] = value;
+    }
+    return values;
+  }
+
+  function formatNumber(value) {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toFixed(5) : "—";
+  }
+
+  function getAngle(value, key) {
+    if (Array.isArray(value)) {
+      const index = { roll: 0, pitch: 1, yaw: 2 }[key];
+      return value[index];
+    }
+    return value?.[key];
+  }
+
+  function renderOffsets(offsets) {
+    $("off-roll").textContent = formatNumber(getAngle(offsets, "roll"));
+    $("off-pitch").textContent = formatNumber(getAngle(offsets, "pitch"));
+    $("off-yaw").textContent = formatNumber(getAngle(offsets, "yaw"));
+  }
+
+  function renderMatrix(id, matrix) {
+    if (!Array.isArray(matrix) || matrix.length !== 3 ||
+        matrix.some(row => !Array.isArray(row) || row.length !== 3)) {
+      $(id).textContent = "Matrix data unavailable";
+      return;
+    }
+
+    const table = document.createElement("table");
+    const tbody = document.createElement("tbody");
+
+    matrix.forEach((row, i) => {
+      const tr = document.createElement("tr");
+      const label = document.createElement("td");
+      label.textContent = i + 1;
+      tr.appendChild(label);
+
+      row.forEach(value => {
+        const td = document.createElement("td");
+        td.textContent = formatNumber(value);
+        tr.appendChild(td);
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    $(id).replaceChildren(table);
+  }
+
+  // The server returns the mathematical rotation matrix in row-major form.
+  function toMatrix3(matrix) {
+    if (!Array.isArray(matrix) || matrix.length !== 3 ||
+        matrix.some(row => !Array.isArray(row) || row.length !== 3)) {
+      throw new Error("Server returned an invalid rotation matrix.");
+    }
+
+    const values = matrix.flat().map(Number);
+    if (values.some(v => !Number.isFinite(v))) {
+      throw new Error("Server returned non-finite matrix values.");
+    }
+
+    return new THREE.Matrix3().set(
+      values[0], values[1], values[2],
+      values[3], values[4], values[5],
+      values[6], values[7], values[8]
+    );
+  }
+
+  /*
+   * Map a backend local-to-world rotation into the Three.js display basis.
+   * The world axes are displayed through C, while each frame's local geometry
+   * is drawn along the ordinary Three.js local X/Y/Z axes. Therefore the
+   * displayed frame orientation is:
+   *
+   *   R_display = C * R_math
+   *
+   * Do not right-multiply by C^T here: that would also change the local basis
+   * of the rendered sensor geometry and makes the zero-angle frame fail to
+   * align with the transformed NED/ENU world axes.
+   *
+   * NED: (x, y, z) -> (x, -z, y), so positive Down points toward Three.js -Y.
+   * ENU: (x, y, z) -> (x, z, -y), so positive Up points toward Three.js +Y.
+   * This affects display only, not backend values or offset calculations.
+   */
+  function toDisplayMatrix(matrix, convention) {
+    const angle = convention === "NED" ? Math.PI / 2 : -Math.PI / 2;
+    const C = new THREE.Matrix3().set(
+      1, 0, 0,
+      0, Math.cos(angle), -Math.sin(angle),
+      0, Math.sin(angle), Math.cos(angle)
+    );
+
+    return C.multiply(toMatrix3(matrix));
+  }
+
+  function matrix3ToMatrix4(m3) {
+    const e = m3.elements;
+    const m4 = new THREE.Matrix4();
+
+    // Matrix3.elements is stored column-major by Three.js.
+    m4.set(
+      e[0], e[3], e[6], 0,
+      e[1], e[4], e[7], 0,
+      e[2], e[5], e[8], 0,
+      0,    0,    0,    1
+    );
+
+    return m4;
+  }
+
+  function createAxis(parent, direction, color, dashed = false, length = 1.4) {
+    const material = dashed
+      ? new THREE.LineDashedMaterial({ color, dashSize: 0.12, gapSize: 0.08 })
+      : new THREE.LineBasicMaterial({ color });
+
+    const start = new THREE.Vector3(0, 0, 0);
+    const end = direction.clone().multiplyScalar(length);
+    const geometry = new THREE.BufferGeometry().setFromPoints([start, end]);
+    const line = new THREE.Line(geometry, material);
+
+    if (dashed) line.computeLineDistances();
+    parent.add(line);
+
+    const arrow = new THREE.ArrowHelper(
+      direction.clone().normalize(),
+      end.clone().addScaledVector(direction.clone().normalize(), -0.16),
+      0.16,
+      color,
+      0.10,
+      0.07
+    );
+
+    parent.add(arrow);
+  }
+
+  function makeFrame(dashed = false) {
+    const group = new THREE.Group();
+    createAxis(group, new THREE.Vector3(1, 0, 0), 0xff5555, dashed);
+    createAxis(group, new THREE.Vector3(0, 1, 0), 0x44d18a, dashed);
+    createAxis(group, new THREE.Vector3(0, 0, 1), 0x5396ff, dashed);
+    scene.add(group);
+    return group;
+  }
+
+  function addTextSprite(text, color) {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 64;
+    const ctx = canvas.getContext("2d");
+    ctx.font = "bold 30px sans-serif";
+    // Arrow colors are numeric Three.js hex values; Canvas needs a CSS color.
+    const cssColor = "#" + Number(color).toString(16).padStart(6, "0");
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = "rgba(8, 13, 22, 0.95)";
+    ctx.lineJoin = "round";
+    ctx.strokeText(text, 10, 42);
+    ctx.fillStyle = cssColor;
+    ctx.fillText(text, 10, 42);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const sprite = new THREE.Sprite(
+      new THREE.SpriteMaterial({ map: texture, transparent: true })
+    );
+    sprite.scale.set(0.8, 0.2, 1);
+    return sprite;
+  }
+
+  function addWorldAxis(direction, color, label) {
+    const origin = new THREE.Vector3(0, 0, 0);
+    const arrow = new THREE.ArrowHelper(direction, origin, 2.0, color, 0.22, 0.12);
+    worldGroup.add(arrow);
+
+    const sprite = addTextSprite(label, color);
+    sprite.position.copy(direction.clone().multiplyScalar(2.25));
+    worldGroup.add(sprite);
+  }
+
+  function buildScene() {
+    const host = $("scene");
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0c121b);
+
+    camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+    camera.position.set(4.5, 4.0, 6.0);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    host.replaceChildren(renderer.domElement);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+
+    const light = new THREE.DirectionalLight(0xffffff, 0.8);
+    light.position.set(4, 8, 5);
+    scene.add(light);
+
+    // This grid is only a visual ground reference in Three.js coordinates.
+    const grid = new THREE.GridHelper(10, 20, 0x40516a, 0x253246);
+    grid.material.transparent = true;
+    grid.material.opacity = 0.55;
+    scene.add(grid);
+
+    worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    externalFrame = makeFrame(false);
+    vnFrame = makeFrame(true);
+
+    updateWorldAxes();
+    resizeRenderer();
+
+    function animate() {
+      animationId = requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    if (window.ResizeObserver) {
+      new ResizeObserver(resizeRenderer).observe(host);
+    } else {
+      window.addEventListener("resize", resizeRenderer);
+    }
+  }
+
+  function resizeRenderer() {
+    if (!renderer || !camera) return;
+    const host = $("scene");
+    const width = Math.max(1, host.clientWidth);
+    const height = Math.max(1, host.clientHeight);
+    renderer.setSize(width, height, false);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+  }
+
+  function updateWorldAxes() {
+    if (!worldGroup) return;
+
+    while (worldGroup.children.length) {
+      const child = worldGroup.children.pop();
+      worldGroup.remove(child);
+    }
+
+    const convention = $("convention").value;
+    const angle = convention === "NED" ? Math.PI / 2 : -Math.PI / 2;
+    worldGroup.rotation.set(angle, 0, 0);
+
+    if (convention === "NED") {
+      addWorldAxis(new THREE.Vector3(1, 0, 0), 0xff5555, "North (N)");
+      addWorldAxis(new THREE.Vector3(0, 1, 0), 0x44d18a, "East (E)");
+      addWorldAxis(new THREE.Vector3(0, 0, 1), 0x5396ff, "Down (D)");
+      $("convention-note").textContent = "NED: X = North, Y = East, Z = Down.";
+    } else {
+      addWorldAxis(new THREE.Vector3(1, 0, 0), 0xff5555, "East (E)");
+      addWorldAxis(new THREE.Vector3(0, 1, 0), 0x44d18a, "North (N)");
+      addWorldAxis(new THREE.Vector3(0, 0, 1), 0x5396ff, "Up (U)");
+      $("convention-note").textContent = "ENU: X = East, Y = North, Z = Up.";
+    }
+
+    // World-axis arrows are placed in the selected display basis.
+    // Keep them visible/hidden in the same way as the world-axis checkbox.
+    worldGroup.visible = $("show-world").checked;
+  }
+
+  function updateSceneMatrices(data) {
+    const convention = $("convention").value;
+
+    const external = data.R_external;
+    const vn = data.R_vn;
+
+    const externalDisplay = toDisplayMatrix(external, convention);
+    const vnDisplay = toDisplayMatrix(vn, convention);
+
+    externalFrame.quaternion.setFromRotationMatrix(matrix3ToMatrix4(externalDisplay));
+    vnFrame.quaternion.setFromRotationMatrix(matrix3ToMatrix4(vnDisplay));
+
+    externalFrame.visible = $("show-external").checked;
+    vnFrame.visible = $("show-vn").checked;
+    worldGroup.visible = $("show-world").checked;
+  }
+
+  async function calculate() {
+    let values;
+    try {
+      values = readInputs();
+    } catch (error) {
+      setStatus(error.message, "error");
+      return;
+    }
+
+    const query = new URLSearchParams({
+      external_roll: values.external_roll,
+      external_pitch: values.external_pitch,
+      external_yaw: values.external_yaw,
+      vn_roll: values.vn_roll,
+      vn_pitch: values.vn_pitch,
+      vn_yaw: values.vn_yaw
+    });
+
+    setStatus("Calculating…");
+
+    try {
+      const response = await fetch("/api/offsets?" + query.toString());
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `HTTP ${response.status}`);
+      }
+
+      const data = await response.json();
+      lastResponse = data;
+
+      if (data.rpy_offsets === undefined ||
+          data.R_external === undefined ||
+          data.R_vn === undefined ||
+          data.R_offset === undefined) {
+        throw new Error("The API response is missing expected fields.");
+      }
+
+      renderOffsets(data.rpy_offsets);
+      renderMatrix("matrix-external", data.R_external);
+      renderMatrix("matrix-vn", data.R_vn);
+      renderMatrix("matrix-offset", data.R_offset);
+      updateSceneMatrices(data);
+
+      setStatus("Updated successfully.", "ok");
+    } catch (error) {
+      setStatus("Could not calculate: " + error.message, "error");
+    }
+  }
+
+  function resetInputs() {
+    inputs.forEach(id => $(id).value = "0");
+    calculate();
+  }
+
+  $("calculate").addEventListener("click", calculate);
+  $("reset").addEventListener("click", resetInputs);
+  $("reset-view").addEventListener("click", () => {
+    camera.position.set(4.5, 4.0, 6.0);
+    controls.target.set(0, 0, 0);
+    controls.update();
+  });
+
+  $("convention").addEventListener("change", () => {
+    updateWorldAxes();
+    if (lastResponse) updateSceneMatrices(lastResponse);
+  });
+
+  $("show-world").addEventListener("change", () => {
+    worldGroup.visible = $("show-world").checked;
+  });
+  $("show-external").addEventListener("change", () => {
+    externalFrame.visible = $("show-external").checked;
+  });
+  $("show-vn").addEventListener("change", () => {
+    vnFrame.visible = $("show-vn").checked;
+  });
+
+  inputs.forEach(id => {
+    $(id).addEventListener("keydown", event => {
+      if (event.key === "Enter") calculate();
+    });
+  });
+
+  async function checkServer() {
+    try {
+      const response = await fetch("/api/hello");
+      if (!response.ok) throw new Error("Server returned HTTP " + response.status);
+      const data = await response.json();
+      setStatus(data.message || "Server connected.", "ok");
+    } catch (error) {
+      setStatus(
+        "Server not reachable. Start the C++ server and serve this page from it. " +
+        error.message,
+        "error"
+      );
+    }
+  }
+
+  try {
+    if (!window.THREE || !THREE.OrbitControls) {
+      throw new Error("Three.js failed to load. Check your internet connection or host the libraries locally.");
+    }
+
+    buildScene();
+    calculate();
+    checkServer();
+  } catch (error) {
+    setStatus(error.message, "error");
+  }
+})();
+</script>
+</body>
+</html>

@@ -67,7 +67,7 @@ if(CLANG_TIDY_EXECUTABLE)
         COMMAND "${CLANG_TIDY_EXECUTABLE}"
             -p "${CMAKE_BINARY_DIR}"
             --checks=clang-analyzer-*,bugprone-*,performance-*,modernize-use-emplace,modernize-loop-convert,modernize-make-unique,modernize-use-nullptr,modernize-use-override
-            --exclude-header-filter=^${CMAKE_SOURCE_DIR}/third_party/.*
+            "--header-filter=^${CMAKE_SOURCE_DIR}/(src|tests)/.*"
             ${RPY_TIDY_SOURCES}
         WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
         COMMENT "Running clang-tidy"

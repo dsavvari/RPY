@@ -57,6 +57,45 @@ cmake --build build --target rpy_unit_tests
 ctest --test-dir build --output-on-failure
 ```
 
+## Code formatting
+
+With `clang-format` installed, format the maintained C++ files using the repository's `.clang-format` rules:
+
+```bash
+clang-format -i src/*.cpp src/*.h tests/*.cpp
+```
+
+Check formatting without changing files:
+
+```bash
+clang-format --dry-run --Werror src/*.cpp src/*.h tests/*.cpp
+```
+
+Formatting is currently run manually; it is not part of the build or configured to run on save.
+
+To enable the repository's pre-commit formatting check in this clone, run once:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+The hook checks staged C++ files and blocks commits with formatting issues. It requires `clang-format` to be installed.
+
+## Continuous integration
+
+GitHub Actions runs the CMake build and unit tests on each push and pull request.
+
+## Static analysis
+
+With `clang-tidy` installed, run the opt-in lint target:
+
+```bash
+cmake -S . -B build
+cmake --build build --target rpy_lint
+```
+
+CMake searches `PATH` and common Homebrew LLVM locations. The target checks server and unit-test sources with clang-analyzer, bugprone, performance, and selected modernization checks, excluding vendored headers; normal builds do not run it.
+
 ## How the application works
 
 ![RPY orientation comparison frontend showing reference-frame selectors, IMU inputs, 3D axes, offsets, and rotation matrices](image.png)

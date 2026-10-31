@@ -25,18 +25,14 @@ void sendError(httplib::Response& res, const std::string& message)
 }
 
 // Absent parameter -> fallback; present but unknown/left-handed -> nullopt.
-std::optional<ReferenceFrame> readFrame(const httplib::Request& req,
-                                        const std::string& name,
+std::optional<ReferenceFrame> readFrame(const httplib::Request& req, const std::string& name,
                                         const std::string& fallback)
 {
-    return ReferenceFrame::parse(
-        req.has_param(name) ? req.get_param_value(name) : fallback);
+    return ReferenceFrame::parse(req.has_param(name) ? req.get_param_value(name) : fallback);
 }
 
 // Rejects missing, invalid, NaN and infinite values.
-bool readParameter(const httplib::Request& req,
-                   const std::string& name,
-                   double& value)
+bool readParameter(const httplib::Request& req, const std::string& name, double& value)
 {
     if (!req.has_param(name))
     {
@@ -48,28 +44,21 @@ bool readParameter(const httplib::Request& req,
 
     value = std::strtod(text.c_str(), &end);
 
-    return end != text.c_str()
-        && *end == '\0'
-        && std::isfinite(value);
+    return end != text.c_str() && *end == '\0' && std::isfinite(value);
 }
 
 // Reads <prefix>_roll, <prefix>_pitch and <prefix>_yaw.
-bool readRPYParameters(const httplib::Request& req,
-                       const std::string& prefix,
-                       RPY& rpy)
+bool readRPYParameters(const httplib::Request& req, const std::string& prefix, RPY& rpy)
 {
-    return readParameter(req, prefix + "_roll", rpy.roll)
-        && readParameter(req, prefix + "_pitch", rpy.pitch)
-        && readParameter(req, prefix + "_yaw", rpy.yaw);
+    return readParameter(req, prefix + "_roll", rpy.roll) &&
+           readParameter(req, prefix + "_pitch", rpy.pitch) &&
+           readParameter(req, prefix + "_yaw", rpy.yaw);
 }
 
 void appendRPYJSON(std::ostringstream& out, const RPY& rpy)
 {
-    out << '{'
-        << R"("roll":)" << rpy.roll << ','
-        << R"("pitch":)" << rpy.pitch << ','
-        << R"("yaw":)" << rpy.yaw
-        << '}';
+    out << '{' << R"("roll":)" << rpy.roll << ',' << R"("pitch":)" << rpy.pitch << ','
+        << R"("yaw":)" << rpy.yaw << '}';
 }
 
 // Serializes as an array of rows: [[a,b,c],[d,e,f],[g,h,i]].
@@ -105,25 +94,17 @@ void appendMatrixJSON(std::ostringstream& out, const Matrix3& matrix)
 
 void ServiceHandler::registerRoutes(httplib::Server& server) const
 {
-    server.Get("/api/frames",
-               [this](const httplib::Request& req, httplib::Response& res)
-               {
-                   handleFrames(req, res);
-               });
+    server.Get("/api/frames", [this](const httplib::Request& req, httplib::Response& res)
+               { handleFrames(req, res); });
 
-    server.Get("/api/offsets",
-               [this](const httplib::Request& req, httplib::Response& res)
-               {
-                   handleOffsets(req, res);
-               });
+    server.Get("/api/offsets", [this](const httplib::Request& req, httplib::Response& res)
+               { handleOffsets(req, res); });
 }
 
-void ServiceHandler::handleFrames(const httplib::Request&,
-                                  httplib::Response& res) const
+void ServiceHandler::handleFrames(const httplib::Request&, httplib::Response& res) const
 {
     std::ostringstream out;
-    out << std::setprecision(15) << R"({"default":")" << DEFAULT_FRAME
-        << R"(","frames":[)";
+    out << std::setprecision(15) << R"({"default":")" << DEFAULT_FRAME << R"(","frames":[)";
 
     bool first = true;
 
@@ -131,9 +112,8 @@ void ServiceHandler::handleFrames(const httplib::Request&,
     {
         const auto labels = frame.axisLabels();
 
-        out << (first ? "" : ",") << R"({"id":")" << frame.code()
-            << R"(","axes":[")" << labels[0] << R"(",")" << labels[1]
-            << R"(",")" << labels[2] << R"("],"to_display":)";
+        out << (first ? "" : ",") << R"({"id":")" << frame.code() << R"(","axes":[")" << labels[0]
+            << R"(",")" << labels[1] << R"(",")" << labels[2] << R"("],"to_display":)";
         appendMatrixJSON(out, frame.toDisplay().matrix());
         out << '}';
         first = false;
@@ -143,8 +123,7 @@ void ServiceHandler::handleFrames(const httplib::Request&,
     res.set_content(out.str(), "application/json");
 }
 
-void ServiceHandler::handleOffsets(const httplib::Request& req,
-                                   httplib::Response& res) const
+void ServiceHandler::handleOffsets(const httplib::Request& req, httplib::Response& res) const
 {
     RPY external;
     RPY internal;
@@ -181,24 +160,19 @@ void ServiceHandler::handleOffsets(const httplib::Request& req,
 
     // Re-express a sensor's orientation in the output frame.
     const auto toOutputFrame = [&](const RPY& rpy, const ReferenceFrame& from)
-    {
-        return ReferenceFrame::conversion(from, *frame) * Rotation(rpy);
-    };
+    { return ReferenceFrame::conversion(from, *frame) * Rotation(rpy); };
 
     const Rotation externalRotation = toOutputFrame(external, *externalFrame);
     const Rotation internalRotation = toOutputFrame(internal, *internalFrame);
     const Rotation offsetRotation = externalRotation.transposed() * internalRotation;
 
     // Untouched angles when no conversion happened, so inputs round-trip exactly.
-    const RPY externalOut =
-        *externalFrame == *frame ? external : externalRotation.toRPY();
-    const RPY internalOut =
-        *internalFrame == *frame ? internal : internalRotation.toRPY();
+    const RPY externalOut = *externalFrame == *frame ? external : externalRotation.toRPY();
+    const RPY internalOut = *internalFrame == *frame ? internal : internalRotation.toRPY();
     const RPY offsets = Rotation::rpyOffsets(externalOut, internalOut);
 
     std::ostringstream out;
-    out << std::setprecision(15) << '{'
-        << R"("frame":")" << frame->code() << R"(",)"
+    out << std::setprecision(15) << '{' << R"("frame":")" << frame->code() << R"(",)"
         << R"("external_frame":")" << externalFrame->code() << R"(",)"
         << R"("internal_frame":")" << internalFrame->code() << R"(",)"
         << R"("external_rpy":)";

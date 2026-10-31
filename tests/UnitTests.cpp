@@ -15,8 +15,7 @@ namespace
 {
 constexpr double TOLERANCE = 1e-12;
 
-void expectMatrixNear(const Matrix3& actual,
-                      const std::array<std::array<double, 3>, 3>& expected)
+void expectMatrixNear(const Matrix3& actual, const std::array<std::array<double, 3>, 3>& expected)
 {
     for (int row = 0; row < 3; ++row)
     {
@@ -34,9 +33,7 @@ void expectRotationNear(const Rotation& actual, const Rotation& expected)
     {
         for (int col = 0; col < 3; ++col)
         {
-            EXPECT_NEAR(actual.matrix().m[row][col],
-                        expected.matrix().m[row][col],
-                        TOLERANCE)
+            EXPECT_NEAR(actual.matrix().m[row][col], expected.matrix().m[row][col], TOLERANCE)
                 << "matrix element [" << row << "][" << col << "]";
         }
     }
@@ -89,8 +86,7 @@ TEST(RotationTest, TransposeIsInverse)
 
 TEST(RotationTest, RpyOffsetsAreInternalMinusExternal)
 {
-    const RPY offsets = Rotation::rpyOffsets(
-        RPY{10.0, -20.0, 30.0}, RPY{15.0, -5.0, -10.0});
+    const RPY offsets = Rotation::rpyOffsets(RPY{10.0, -20.0, 30.0}, RPY{15.0, -5.0, -10.0});
 
     EXPECT_DOUBLE_EQ(offsets.roll, 5.0);
     EXPECT_DOUBLE_EQ(offsets.pitch, 15.0);
@@ -157,6 +153,5 @@ TEST(ReferenceFrameTest, EnuDisplayBasisMapsUpToThreeJsY)
     const auto enu = ReferenceFrame::parse("ENU");
     ASSERT_TRUE(enu.has_value());
 
-    expectMatrixNear(enu->toDisplay().matrix(),
-                     {{{1, 0, 0}, {0, 0, 1}, {0, -1, 0}}});
+    expectMatrixNear(enu->toDisplay().matrix(), {{{1, 0, 0}, {0, 0, 1}, {0, -1, 0}}});
 }

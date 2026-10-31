@@ -17,9 +17,9 @@ double toRadians(double degrees)
 
 Rotation::Rotation(const RPY& rpy)
 {
-    const double roll  = toRadians(rpy.roll);
+    const double roll = toRadians(rpy.roll);
     const double pitch = toRadians(rpy.pitch);
-    const double yaw   = toRadians(rpy.yaw);
+    const double yaw = toRadians(rpy.yaw);
 
     const double cr = std::cos(roll);
     const double sr = std::sin(roll);
@@ -64,7 +64,7 @@ RPY Rotation::toRPY() const
         yaw = std::atan2(m[1][0], m[0][0]);
     }
 
-    return { roll * 180.0 / PI, pitch * 180.0 / PI, yaw * 180.0 / PI };
+    return {roll * 180.0 / PI, pitch * 180.0 / PI, yaw * 180.0 / PI};
 }
 
 Rotation Rotation::transposed() const
@@ -92,8 +92,7 @@ Rotation Rotation::operator*(const Rotation& other) const
         {
             for (int k = 0; k < 3; ++k)
             {
-                result.matrix_.m[row][col] +=
-                    matrix_.m[row][k] * other.matrix_.m[k][col];
+                result.matrix_.m[row][col] += matrix_.m[row][k] * other.matrix_.m[k][col];
             }
         }
     }
@@ -103,9 +102,6 @@ Rotation Rotation::operator*(const Rotation& other) const
 
 RPY Rotation::rpyOffsets(const RPY& external, const RPY& internal)
 {
-    return {
-        internal.roll - external.roll,
-        internal.pitch - external.pitch,
-        internal.yaw - external.yaw
-    };
+    return {internal.roll - external.roll, internal.pitch - external.pitch,
+            internal.yaw - external.yaw};
 }

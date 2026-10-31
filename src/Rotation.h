@@ -24,9 +24,14 @@ public:
     explicit Rotation(const RPY& rpy);
 
     // The matrix must already be a proper rotation (orthonormal, det +1).
-    explicit Rotation(const Matrix3& matrix) : matrix_(matrix) {}
+    explicit Rotation(const Matrix3& matrix) : matrix_(matrix)
+    {
+    }
 
-    const Matrix3& matrix() const { return matrix_; }
+    const Matrix3& matrix() const
+    {
+        return matrix_;
+    }
 
     // Inverse of the RPY constructor, in degrees. Roll is 0 at gimbal lock.
     RPY toRPY() const;

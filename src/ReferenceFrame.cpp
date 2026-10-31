@@ -16,18 +16,14 @@ struct Direction
 };
 
 constexpr Direction DIRECTIONS[] = {
-    { 'E', "East (E)",  {  1,  0,  0 }, 0 },
-    { 'W', "West (W)",  { -1,  0,  0 }, 0 },
-    { 'N', "North (N)", {  0,  1,  0 }, 1 },
-    { 'S', "South (S)", {  0, -1,  0 }, 1 },
-    { 'U', "Up (U)",    {  0,  0,  1 }, 2 },
-    { 'D', "Down (D)",  {  0,  0, -1 }, 2 },
+    {'E', "East (E)", {1, 0, 0}, 0},  {'W', "West (W)", {-1, 0, 0}, 0},
+    {'N', "North (N)", {0, 1, 0}, 1}, {'S', "South (S)", {0, -1, 0}, 1},
+    {'U', "Up (U)", {0, 0, 1}, 2},    {'D', "Down (D)", {0, 0, -1}, 2},
 };
 
 const Direction* findDirection(char letter)
 {
-    const char upper = static_cast<char>(
-        std::toupper(static_cast<unsigned char>(letter)));
+    const char upper = static_cast<char>(std::toupper(static_cast<unsigned char>(letter)));
 
     for (const Direction& d : DIRECTIONS)
     {
@@ -70,10 +66,8 @@ std::optional<ReferenceFrame> ReferenceFrame::parse(const std::string& code)
     const auto& a = axes[0];
     const auto& b = axes[1];
     const auto& c = axes[2];
-    const int triple =
-        (a[1] * b[2] - a[2] * b[1]) * c[0]
-        + (a[2] * b[0] - a[0] * b[2]) * c[1]
-        + (a[0] * b[1] - a[1] * b[0]) * c[2];
+    const int triple = (a[1] * b[2] - a[2] * b[1]) * c[0] + (a[2] * b[0] - a[0] * b[2]) * c[1] +
+                       (a[0] * b[1] - a[1] * b[0]) * c[2];
 
     if (triple != 1)
     {
@@ -89,7 +83,7 @@ const std::vector<ReferenceFrame>& ReferenceFrame::supported()
     {
         std::vector<ReferenceFrame> list;
 
-        for (const char* code : { "NED", "ENU", "NWU", "SEU", "SWD" })
+        for (const char* code : {"NED", "ENU", "NWU", "SEU", "SWD"})
         {
             list.push_back(*parse(code));
         }
@@ -100,8 +94,7 @@ const std::vector<ReferenceFrame>& ReferenceFrame::supported()
     return frames;
 }
 
-Rotation ReferenceFrame::conversion(const ReferenceFrame& from,
-                                    const ReferenceFrame& to)
+Rotation ReferenceFrame::conversion(const ReferenceFrame& from, const ReferenceFrame& to)
 {
     return to.toENU().transposed() * from.toENU();
 }

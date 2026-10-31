@@ -22,10 +22,12 @@ public:
     static const std::vector<ReferenceFrame>& supported();
 
     // Rotation taking coordinates expressed in `from` to coordinates in `to`.
-    static Rotation conversion(const ReferenceFrame& from,
-                               const ReferenceFrame& to);
+    static Rotation conversion(const ReferenceFrame& from, const ReferenceFrame& to);
 
-    const std::string& code() const { return code_; }
+    const std::string& code() const
+    {
+        return code_;
+    }
 
     std::array<std::string, 3> axisLabels() const;
 
@@ -40,8 +42,9 @@ public:
 private:
     using Axes = std::array<std::array<int, 3>, 3>;
 
-    ReferenceFrame(std::string code, const Axes& axes)
-        : code_(std::move(code)), axes_(axes) {}
+    ReferenceFrame(std::string code, const Axes& axes) : code_(std::move(code)), axes_(axes)
+    {
+    }
 
     Rotation toENU() const;
 

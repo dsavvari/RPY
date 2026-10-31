@@ -47,6 +47,16 @@ http://127.0.0.1:8080/
 
 Keep the terminal running while using the page. If your existing project uses a different build command, continue using that command.
 
+## Unit tests
+
+GoogleTest is used for the rotation and reference-frame tests. CMake uses an installed GoogleTest package or fetches a pinned version when needed.
+
+```bash
+cmake -S . -B build -DBUILD_TESTING=ON
+cmake --build build --target rpy_unit_tests
+ctest --test-dir build --output-on-failure
+```
+
 ## How the application works
 
 ![RPY orientation comparison frontend showing reference-frame selectors, IMU inputs, 3D axes, offsets, and rotation matrices](image.png)

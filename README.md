@@ -12,9 +12,6 @@ project-folder/
 │   └── httplib.h     # Vendored cpp-httplib
 ├── web/
 │   └── index.html    # Web UI and Three.js scene
-├── docs/
-│   ├── README.md
-│   └── image.png     # Frontend screenshot
 └── build/            # Generated build output; serves its own www/ directory
 ```
 

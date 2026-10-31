@@ -52,6 +52,15 @@ TEST(RotationTest, PositiveNinetyDegreeYawRotatesAboutZ)
     expectMatrixNear(rotation.matrix(), {{{0, -1, 0}, {1, 0, 0}, {0, 0, 1}}});
 }
 
+TEST(RotationTest, CompositionOrderMatchesRzRyRxConvention)
+{
+    const Rotation roll(RPY{90, 0, 0});
+    const Rotation yaw(RPY{0, 0, 90});
+
+    expectMatrixNear((yaw * roll).matrix(), {{{0, 0, 1}, {1, 0, 0}, {0, 1, 0}}});
+    expectMatrixNear((roll * yaw).matrix(), {{{0, -1, 0}, {0, 0, -1}, {1, 0, 0}}});
+}
+
 TEST(RotationTest, EulerAnglesRoundTripAwayFromGimbalLock)
 {
     const RPY input{17.5, -28.0, 63.25};
@@ -146,6 +155,22 @@ TEST(ReferenceFrameTest, ConversionAndReverseConversionCancel)
     const Rotation toEnu = ReferenceFrame::conversion(*ned, *enu);
     const Rotation toNed = ReferenceFrame::conversion(*enu, *ned);
     expectRotationNear(toNed * toEnu, Rotation(RPY{}));
+}
+
+TEST(ReferenceFrameTest, SupportedFrameConversionsAreMutualInverses)
+{
+    const Rotation identity(RPY{});
+    const auto& frames = ReferenceFrame::supported();
+
+    for (const ReferenceFrame& from : frames)
+    {
+        for (const ReferenceFrame& to : frames)
+        {
+            const Rotation forward = ReferenceFrame::conversion(from, to);
+            const Rotation reverse = ReferenceFrame::conversion(to, from);
+            expectRotationNear(reverse * forward, identity);
+        }
+    }
 }
 
 TEST(ReferenceFrameTest, EnuDisplayBasisMapsUpToThreeJsY)

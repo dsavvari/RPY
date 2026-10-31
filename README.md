@@ -80,7 +80,7 @@ The hook checks staged C++ files and blocks commits with formatting issues. It r
 
 ## Continuous integration
 
-GitHub Actions runs the CMake build and unit tests on each push and pull request.
+GitHub Actions runs the CMake build, unit tests, clang-format check, and clang-tidy lint on each push and pull request.
 
 ## Static analysis
 

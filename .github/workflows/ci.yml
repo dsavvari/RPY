@@ -13,11 +13,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install clang tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends clang-format clang-tidy
+
       - name: Configure
         run: cmake -S . -B build -DBUILD_TESTING=ON
 
+      - name: Check formatting
+        run: clang-format --dry-run --Werror src/*.cpp src/*.h tests/*.cpp
+
       - name: Build
         run: cmake --build build --parallel 2
+
+      - name: Lint
+        run: cmake --build build --target rpy_lint
 
       - name: Test
         run: ctest --test-dir build --output-on-failure

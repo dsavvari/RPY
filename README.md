@@ -2,7 +2,6 @@
 
 A small local web application for comparing roll, pitch, and yaw (RPY) values from External and Internal IMUs. The C++ HTTP server converts sensor orientations between reference frames and calculates rotation matrices and component-wise angle differences. The HTML/JavaScript frontend displays the results and visualizes the orientations using Three.js.
 
-dd
 ## Project layout
 
 ```text

@@ -16,6 +16,9 @@ public:
     void registerRoutes(httplib::Server& server) const;
 
 private:
+    void handleFrames(const httplib::Request& req,
+                      httplib::Response& res) const;
+
     void handleOffsets(const httplib::Request& req,
                        httplib::Response& res) const;
 };

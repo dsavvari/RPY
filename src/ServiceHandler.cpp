@@ -6,14 +6,33 @@
 #include <cmath>
 #include <cstdlib>
 #include <iomanip>
+#include <optional>
 #include <sstream>
 #include <string>
 
+#include "ReferenceFrame.h"
 #include "Rotation.h"
 #include "httplib.h"
 
 namespace
 {
+constexpr const char* DEFAULT_FRAME = "NED";
+
+void sendError(httplib::Response& res, const std::string& message)
+{
+    res.status = 400;
+    res.set_content(R"({"error":")" + message + R"("})", "application/json");
+}
+
+// Absent parameter -> fallback; present but unknown/left-handed -> nullopt.
+std::optional<ReferenceFrame> readFrame(const httplib::Request& req,
+                                        const std::string& name,
+                                        const std::string& fallback)
+{
+    return ReferenceFrame::parse(
+        req.has_param(name) ? req.get_param_value(name) : fallback);
+}
+
 // Rejects missing, invalid, NaN and infinite values.
 bool readParameter(const httplib::Request& req,
                    const std::string& name,
@@ -86,6 +105,12 @@ void appendMatrixJSON(std::ostringstream& out, const Matrix3& matrix)
 
 void ServiceHandler::registerRoutes(httplib::Server& server) const
 {
+    server.Get("/api/frames",
+               [this](const httplib::Request& req, httplib::Response& res)
+               {
+                   handleFrames(req, res);
+               });
+
     server.Get("/api/offsets",
                [this](const httplib::Request& req, httplib::Response& res)
                {
@@ -93,46 +118,99 @@ void ServiceHandler::registerRoutes(httplib::Server& server) const
                });
 }
 
+void ServiceHandler::handleFrames(const httplib::Request&,
+                                  httplib::Response& res) const
+{
+    std::ostringstream out;
+    out << std::setprecision(15) << R"({"default":")" << DEFAULT_FRAME
+        << R"(","frames":[)";
+
+    bool first = true;
+
+    for (const ReferenceFrame& frame : ReferenceFrame::supported())
+    {
+        const auto labels = frame.axisLabels();
+
+        out << (first ? "" : ",") << R"({"id":")" << frame.code()
+            << R"(","axes":[")" << labels[0] << R"(",")" << labels[1]
+            << R"(",")" << labels[2] << R"("],"to_display":)";
+        appendMatrixJSON(out, frame.toDisplay().matrix());
+        out << '}';
+        first = false;
+    }
+
+    out << "]}";
+    res.set_content(out.str(), "application/json");
+}
+
 void ServiceHandler::handleOffsets(const httplib::Request& req,
                                    httplib::Response& res) const
 {
     RPY external;
-    RPY vn;
+    RPY internal;
 
     if (!readRPYParameters(req, "external", external))
     {
-        res.status = 400;
-        res.set_content(
-            R"({"error":"Missing or invalid external RPY parameters"})",
-            "application/json");
+        sendError(res, "Missing or invalid external RPY parameters");
         return;
     }
 
-    if (!readRPYParameters(req, "vn", vn))
+    if (!readRPYParameters(req, "internal", internal))
     {
-        res.status = 400;
-        res.set_content(
-            R"({"error":"Missing or invalid VN RPY parameters"})",
-            "application/json");
+        sendError(res, "Missing or invalid Internal RPY parameters");
         return;
     }
 
-    const RPY offsets = Rotation::rpyOffsets(external, vn);
-    const Rotation externalRotation(external);
-    const Rotation vnRotation(vn);
-    const Rotation offsetRotation = externalRotation.transposed() * vnRotation;
+    // `frame` is the output frame; each sensor's angles default to it.
+    const auto frame = readFrame(req, "frame", DEFAULT_FRAME);
+
+    if (!frame)
+    {
+        sendError(res, "Unknown or left-handed reference frame");
+        return;
+    }
+
+    const auto externalFrame = readFrame(req, "external_frame", frame->code());
+    const auto internalFrame = readFrame(req, "internal_frame", frame->code());
+
+    if (!externalFrame || !internalFrame)
+    {
+        sendError(res, "Unknown or left-handed sensor reference frame");
+        return;
+    }
+
+    // Re-express a sensor's orientation in the output frame.
+    const auto toOutputFrame = [&](const RPY& rpy, const ReferenceFrame& from)
+    {
+        return ReferenceFrame::conversion(from, *frame) * Rotation(rpy);
+    };
+
+    const Rotation externalRotation = toOutputFrame(external, *externalFrame);
+    const Rotation internalRotation = toOutputFrame(internal, *internalFrame);
+    const Rotation offsetRotation = externalRotation.transposed() * internalRotation;
+
+    // Untouched angles when no conversion happened, so inputs round-trip exactly.
+    const RPY externalOut =
+        *externalFrame == *frame ? external : externalRotation.toRPY();
+    const RPY internalOut =
+        *internalFrame == *frame ? internal : internalRotation.toRPY();
+    const RPY offsets = Rotation::rpyOffsets(externalOut, internalOut);
 
     std::ostringstream out;
-    out << std::setprecision(15) << '{' << R"("external_rpy":)";
+    out << std::setprecision(15) << '{'
+        << R"("frame":")" << frame->code() << R"(",)"
+        << R"("external_frame":")" << externalFrame->code() << R"(",)"
+        << R"("internal_frame":")" << internalFrame->code() << R"(",)"
+        << R"("external_rpy":)";
     appendRPYJSON(out, external);
-    out << ',' << R"("vn_rpy":)";
-    appendRPYJSON(out, vn);
+    out << ',' << R"("internal_rpy":)";
+    appendRPYJSON(out, internal);
     out << ',' << R"("rpy_offsets":)";
     appendRPYJSON(out, offsets);
     out << ',' << R"("R_external":)";
     appendMatrixJSON(out, externalRotation.matrix());
-    out << ',' << R"("R_vn":)";
-    appendMatrixJSON(out, vnRotation.matrix());
+    out << ',' << R"("R_internal":)";
+    appendMatrixJSON(out, internalRotation.matrix());
     out << ',' << R"("R_offset":)";
     appendMatrixJSON(out, offsetRotation.matrix());
     out << '}';

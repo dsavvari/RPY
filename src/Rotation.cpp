@@ -43,6 +43,30 @@ Rotation::Rotation(const RPY& rpy)
     m[2][2] = cp * cr;
 }
 
+RPY Rotation::toRPY() const
+{
+    const auto& m = matrix_.m;
+    constexpr double GIMBAL_LIMIT = 1.0 - 1e-12;
+
+    double roll{};
+    double pitch{};
+    double yaw{};
+
+    if (std::abs(m[2][0]) >= GIMBAL_LIMIT)
+    {
+        pitch = m[2][0] < 0.0 ? PI / 2.0 : -PI / 2.0;
+        yaw = std::atan2(-m[0][1], m[1][1]);
+    }
+    else
+    {
+        pitch = std::asin(-m[2][0]);
+        roll = std::atan2(m[2][1], m[2][2]);
+        yaw = std::atan2(m[1][0], m[0][0]);
+    }
+
+    return { roll * 180.0 / PI, pitch * 180.0 / PI, yaw * 180.0 / PI };
+}
+
 Rotation Rotation::transposed() const
 {
     Rotation result;
@@ -77,11 +101,11 @@ Rotation Rotation::operator*(const Rotation& other) const
     return result;
 }
 
-RPY Rotation::rpyOffsets(const RPY& external, const RPY& vn)
+RPY Rotation::rpyOffsets(const RPY& external, const RPY& internal)
 {
     return {
-        vn.roll - external.roll,
-        vn.pitch - external.pitch,
-        vn.yaw - external.yaw
+        internal.roll - external.roll,
+        internal.pitch - external.pitch,
+        internal.yaw - external.yaw
     };
 }

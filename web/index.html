@@ -194,7 +194,7 @@
 <body>
 <header>
   <h1>RPY Orientation Comparison</h1>
-  <p>Compare External IMU and VectorNav roll, pitch, yaw, rotation matrices, and relative orientation.</p>
+  <p>Compare External and Internal IMU roll, pitch, yaw, rotation matrices, and relative orientation.</p>
 </header>
 
 <main>
@@ -202,26 +202,22 @@
     <div class="panel">
       <h2>Coordinate convention</h2>
       <label for="convention">World reference frame</label>
-      <select id="convention">
-        <option value="NED" selected>NED — North, East, Down</option>
-        <option value="ENU">ENU — East, North, Up</option>
-      </select>
-      <p id="convention-note" class="muted">
-        NED: X = North, Y = East, Z = Down.
-      </p>
+      <select id="convention"></select>
+      <p id="convention-note" class="muted"></p>
       <div class="formula">
         R = Rz(yaw) · Ry(pitch) · Rx(roll)
       </div>
       <p class="muted">
-        Angles are entered in degrees. The coordinate selector changes the 3D
-        display mapping; it does not automatically reinterpret or convert the
-        sensor's reported angles.
+        Angles are entered in degrees, relative to the reference frame chosen
+        for each IMU. The server converts both IMUs into the world frame
+        selected here before computing matrices and offsets.
       </p>
     </div>
 
     <div class="panel">
       <h2>External IMU</h2>
-      <div class="fields">
+      <label>Reference frame<select id="external_frame"></select></label>
+      <div class="fields" style="margin-top:10px">
         <label>Roll (°)<input id="external_roll" type="number" step="any" value="0"></label>
         <label>Pitch (°)<input id="external_pitch" type="number" step="any" value="0"></label>
         <label>Yaw (°)<input id="external_yaw" type="number" step="any" value="0"></label>
@@ -229,11 +225,12 @@
     </div>
 
     <div class="panel">
-      <h2>VectorNav IMU</h2>
-      <div class="fields">
-        <label>Roll (°)<input id="vn_roll" type="number" step="any" value="0"></label>
-        <label>Pitch (°)<input id="vn_pitch" type="number" step="any" value="0"></label>
-        <label>Yaw (°)<input id="vn_yaw" type="number" step="any" value="0"></label>
+      <h2>Internal IMU</h2>
+      <label>Reference frame<select id="internal_frame"></select></label>
+      <div class="fields" style="margin-top:10px">
+        <label>Roll (°)<input id="internal_roll" type="number" step="any" value="0"></label>
+        <label>Pitch (°)<input id="internal_pitch" type="number" step="any" value="0"></label>
+        <label>Yaw (°)<input id="internal_yaw" type="number" step="any" value="0"></label>
       </div>
       <div class="button-row">
         <button id="calculate">Calculate</button>
@@ -250,7 +247,7 @@
         <div class="offset"><span>Yaw</span><strong id="off-yaw">—</strong></div>
       </div>
       <p class="section-note">
-        These values are the server's direct VN − External Euler-angle
+        These values are the server's Internal − External Euler-angle
         differences. They are not necessarily the Euler angles of the relative
         rotation matrix.
       </p>
@@ -268,17 +265,17 @@
         <span><i class="dot green"></i>Y axis</span>
         <span><i class="dot blue"></i>Z axis</span>
         <span><i class="solid-line"></i>External</span>
-        <span><i class="dashed-line"></i>VectorNav</span>
+        <span><i class="dashed-line"></i>Internal</span>
       </div>
       <div id="scene"></div>
       <div class="checks" style="margin-top:14px">
         <label><input id="show-world" type="checkbox" checked> World axes</label>
         <label><input id="show-external" type="checkbox" checked> External frame</label>
-        <label><input id="show-vn" type="checkbox" checked> VectorNav frame</label>
+        <label><input id="show-internal" type="checkbox" checked> Internal frame</label>
       </div>
       <p class="section-note">
         Drag to orbit, scroll to zoom, and right-drag to pan. Solid axes are
-        External; dashed axes are VectorNav.
+        External; dashed axes are Internal.
       </p>
     </div>
 
@@ -290,8 +287,8 @@
           <div id="matrix-external" class="table-scroll">Waiting for data…</div>
         </div>
         <div class="matrix-card">
-          <h3>R VectorNav</h3>
-          <div id="matrix-vn" class="table-scroll">Waiting for data…</div>
+          <h3>R Internal</h3>
+          <div id="matrix-internal" class="table-scroll">Waiting for data…</div>
         </div>
         <div class="matrix-card">
           <h3>R Offset</h3>
@@ -299,7 +296,7 @@
         </div>
       </div>
       <p class="section-note">
-        R Offset = transpose(R External) × R VectorNav, as calculated by the
+        R Offset = transpose(R External) × R Internal, as calculated by the
         server.
       </p>
     </div>
@@ -315,12 +312,17 @@
 
   const inputs = [
     "external_roll", "external_pitch", "external_yaw",
-    "vn_roll", "vn_pitch", "vn_yaw"
+    "internal_roll", "internal_pitch", "internal_yaw"
   ];
 
   let renderer, scene, camera, controls;
-  let externalFrame, vnFrame, worldGroup, animationId;
+  let externalFrame, internalFrame, worldGroup, animationId;
   let lastResponse = null;
+  let frames = [];
+
+  const frameSelects = ["convention", "external_frame", "internal_frame"];
+
+  const frameById = id => frames.find(f => f.id === id);
 
   function setStatus(message, kind = "") {
     $("status").textContent = message;
@@ -408,30 +410,18 @@
   }
 
   /*
-   * Map a backend local-to-world rotation into the Three.js display basis.
-   * The world axes are displayed through C, while each frame's local geometry
-   * is drawn along the ordinary Three.js local X/Y/Z axes. Therefore the
-   * displayed frame orientation is:
+   * The server supplies each frame's `to_display` matrix (frame coordinates ->
+   * Three.js coordinates), and returns R_* already expressed in the selected
+   * world frame. A sensor is therefore displayed as:
    *
-   *   R_display = C * R_math
+   *   R_display = to_display * R
    *
-   * Do not right-multiply by C^T here: that would also change the local basis
-   * of the rendered sensor geometry and makes the zero-angle frame fail to
-   * align with the transformed NED/ENU world axes.
-   *
-   * NED: (x, y, z) -> (x, -z, y), so positive Down points toward Three.js -Y.
-   * ENU: (x, y, z) -> (x, z, -y), so positive Up points toward Three.js +Y.
-   * This affects display only, not backend values or offset calculations.
+   * Sensor axes are drawn along the ordinary Three.js local X/Y/Z axes, so
+   * the display basis is applied on the left only.
    */
-  function toDisplayMatrix(matrix, convention) {
-    const angle = convention === "NED" ? Math.PI / 2 : -Math.PI / 2;
-    const C = new THREE.Matrix3().set(
-      1, 0, 0,
-      0, Math.cos(angle), -Math.sin(angle),
-      0, Math.sin(angle), Math.cos(angle)
-    );
-
-    return C.multiply(toMatrix3(matrix));
+  function toDisplayMatrix(matrix, frame) {
+    const D = toMatrix3(frame.to_display);
+    return D.multiply(toMatrix3(matrix));
   }
 
   function matrix3ToMatrix4(m3) {
@@ -548,7 +538,7 @@
     scene.add(worldGroup);
 
     externalFrame = makeFrame(false);
-    vnFrame = makeFrame(true);
+    internalFrame = makeFrame(true);
 
     updateWorldAxes();
     resizeRenderer();
@@ -585,41 +575,38 @@
       worldGroup.remove(child);
     }
 
-    const convention = $("convention").value;
-    const angle = convention === "NED" ? Math.PI / 2 : -Math.PI / 2;
-    worldGroup.rotation.set(angle, 0, 0);
+    const frame = frameById($("convention").value);
+    if (!frame) return;
 
-    if (convention === "NED") {
-      addWorldAxis(new THREE.Vector3(1, 0, 0), 0xff5555, "North (N)");
-      addWorldAxis(new THREE.Vector3(0, 1, 0), 0x44d18a, "East (E)");
-      addWorldAxis(new THREE.Vector3(0, 0, 1), 0x5396ff, "Down (D)");
-      $("convention-note").textContent = "NED: X = North, Y = East, Z = Down.";
-    } else {
-      addWorldAxis(new THREE.Vector3(1, 0, 0), 0xff5555, "East (E)");
-      addWorldAxis(new THREE.Vector3(0, 1, 0), 0x44d18a, "North (N)");
-      addWorldAxis(new THREE.Vector3(0, 0, 1), 0x5396ff, "Up (U)");
-      $("convention-note").textContent = "ENU: X = East, Y = North, Z = Up.";
-    }
+    // Axis i of the frame is column i of to_display.
+    const colors = [0xff5555, 0x44d18a, 0x5396ff];
+    frame.axes.forEach((label, i) => {
+      const direction = new THREE.Vector3(
+        frame.to_display[0][i],
+        frame.to_display[1][i],
+        frame.to_display[2][i]
+      );
+      addWorldAxis(direction, colors[i], label);
+    });
 
-    // World-axis arrows are placed in the selected display basis.
-    // Keep them visible/hidden in the same way as the world-axis checkbox.
+    $("convention-note").textContent =
+      `${frame.id}: X = ${frame.axes[0]}, Y = ${frame.axes[1]}, Z = ${frame.axes[2]}.`;
+
     worldGroup.visible = $("show-world").checked;
   }
 
   function updateSceneMatrices(data) {
-    const convention = $("convention").value;
+    const frame = frameById(data.frame);
+    if (!frame) return;
 
-    const external = data.R_external;
-    const vn = data.R_vn;
-
-    const externalDisplay = toDisplayMatrix(external, convention);
-    const vnDisplay = toDisplayMatrix(vn, convention);
+    const externalDisplay = toDisplayMatrix(data.R_external, frame);
+    const internalDisplay = toDisplayMatrix(data.R_internal, frame);
 
     externalFrame.quaternion.setFromRotationMatrix(matrix3ToMatrix4(externalDisplay));
-    vnFrame.quaternion.setFromRotationMatrix(matrix3ToMatrix4(vnDisplay));
+    internalFrame.quaternion.setFromRotationMatrix(matrix3ToMatrix4(internalDisplay));
 
     externalFrame.visible = $("show-external").checked;
-    vnFrame.visible = $("show-vn").checked;
+    internalFrame.visible = $("show-internal").checked;
     worldGroup.visible = $("show-world").checked;
   }
 
@@ -636,9 +623,12 @@
       external_roll: values.external_roll,
       external_pitch: values.external_pitch,
       external_yaw: values.external_yaw,
-      vn_roll: values.vn_roll,
-      vn_pitch: values.vn_pitch,
-      vn_yaw: values.vn_yaw
+      internal_roll: values.internal_roll,
+      internal_pitch: values.internal_pitch,
+      internal_yaw: values.internal_yaw,
+      frame: $("convention").value,
+      external_frame: $("external_frame").value,
+      internal_frame: $("internal_frame").value
     });
 
     setStatus("Calculating…");
@@ -647,7 +637,9 @@
       const response = await fetch("/api/offsets?" + query.toString());
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(text || `HTTP ${response.status}`);
+        let message = text;
+        try { message = JSON.parse(text).error || text; } catch (_) {}
+        throw new Error(message || `HTTP ${response.status}`);
       }
 
       const data = await response.json();
@@ -655,14 +647,14 @@
 
       if (data.rpy_offsets === undefined ||
           data.R_external === undefined ||
-          data.R_vn === undefined ||
+          data.R_internal === undefined ||
           data.R_offset === undefined) {
         throw new Error("The API response is missing expected fields.");
       }
 
       renderOffsets(data.rpy_offsets);
       renderMatrix("matrix-external", data.R_external);
-      renderMatrix("matrix-vn", data.R_vn);
+      renderMatrix("matrix-internal", data.R_internal);
       renderMatrix("matrix-offset", data.R_offset);
       updateSceneMatrices(data);
 
@@ -687,8 +679,11 @@
 
   $("convention").addEventListener("change", () => {
     updateWorldAxes();
-    if (lastResponse) updateSceneMatrices(lastResponse);
+    calculate();
   });
+
+  ["external_frame", "internal_frame"].forEach(id =>
+    $(id).addEventListener("change", calculate));
 
   $("show-world").addEventListener("change", () => {
     worldGroup.visible = $("show-world").checked;
@@ -696,8 +691,8 @@
   $("show-external").addEventListener("change", () => {
     externalFrame.visible = $("show-external").checked;
   });
-  $("show-vn").addEventListener("change", () => {
-    vnFrame.visible = $("show-vn").checked;
+  $("show-internal").addEventListener("change", () => {
+    internalFrame.visible = $("show-internal").checked;
   });
 
   inputs.forEach(id => {
@@ -706,12 +701,33 @@
     });
   });
 
-  async function checkServer() {
+  async function loadFrames() {
+    const response = await fetch("/api/frames");
+    if (!response.ok) throw new Error("Server returned HTTP " + response.status);
+
+    const data = await response.json();
+    frames = data.frames;
+
+    for (const id of frameSelects) {
+      $(id).replaceChildren(...frames.map(f => {
+        const option = document.createElement("option");
+        option.value = f.id;
+        option.textContent = `${f.id} — ${f.axes.map(a => a.split(" ")[0]).join(", ")}`;
+        return option;
+      }));
+      $(id).value = data.default;
+    }
+  }
+
+  (async () => {
     try {
-      const response = await fetch("/api/hello");
-      if (!response.ok) throw new Error("Server returned HTTP " + response.status);
-      const data = await response.json();
-      setStatus(data.message || "Server connected.", "ok");
+      if (!window.THREE || !THREE.OrbitControls) {
+        throw new Error("Three.js failed to load. Check your internet connection or host the libraries locally.");
+      }
+
+      await loadFrames();
+      buildScene();
+      calculate();
     } catch (error) {
       setStatus(
         "Server not reachable. Start the C++ server and serve this page from it. " +
@@ -719,19 +735,7 @@
         "error"
       );
     }
-  }
-
-  try {
-    if (!window.THREE || !THREE.OrbitControls) {
-      throw new Error("Three.js failed to load. Check your internet connection or host the libraries locally.");
-    }
-
-    buildScene();
-    calculate();
-    checkServer();
-  } catch (error) {
-    setStatus(error.message, "error");
-  }
+  })();
 })();
 </script>
 </body>

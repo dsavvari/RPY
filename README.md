@@ -56,7 +56,7 @@ ctest --test-dir build --output-on-failure
 
 ## Code formatting
 
-With `clang-format` installed, format the maintained C++ files using the repository's `.clang-format` rules:
+With `clang-format` 20.1.8 installed, format the maintained C++ files using the repository's `.clang-format` rules. CI uses this version to keep formatting consistent:
 
 ```bash
 clang-format -i src/*.cpp src/*.h tests/*.cpp
@@ -80,7 +80,7 @@ The hook checks staged C++ files and blocks commits with formatting issues. It r
 
 ## Continuous integration
 
-GitHub Actions runs the CMake build and unit tests on each push and pull request.
+GitHub Actions runs the CMake build, unit tests, clang-format check, and clang-tidy lint on each push and pull request.
 
 ## Static analysis
 
